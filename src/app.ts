@@ -20,12 +20,22 @@ function parseBool(s: string | undefined, def?: boolean) {
 const defaultGpgAgentSock = path.join(process.env.APPDATA, 'gnupg/S.gpg-agent.extra');
 const GPG_AGENT_SOCK: string = process.env.GPG_AGENT_SOCK || defaultGpgAgentSock;
 const LISTEN_PORT: number = parseInt(process.env.LISTEN_PORT || '31000');
-const IGNORE_ERROR: boolean = parseBool(process.env.IGNORE_ERROR, true);
 
 const server = net.createServer();
 server.on('connection', (socket: net.Socket) => {
+  console.log(`Client[${socket.remoteAddress.toString()}] connected`);
   const client = AssuanClient.create({
     path: GPG_AGENT_SOCK
+  });
+  socket.on('data', (data) => {
+    client.write(data);
+  });
+  socket.on('close', () => {
+    console.log(`Client[${socket.remoteAddress.toString()}] closed`);
+    client.close();
+  });
+  socket.on('error', (err) => {
+    console.error(`Client[${socket.remoteAddress.toString()}] error`, err);
   });
   client.onRead((data) => {
     return new Promise<void>((resolve, reject) => {
@@ -45,9 +55,6 @@ server.on('connection', (socket: net.Socket) => {
   }));
   client.onError((err) => {
     console.error(err);
-    if (!IGNORE_ERROR) {
-      process.exit(2);
-    }
   });
   client.connect();
 });
@@ -59,6 +66,5 @@ server.on('listening', () => {
   console.log('Server started!');
   console.log(` gpg-agent socket : ${GPG_AGENT_SOCK}`);
   console.log(` listen port      : ${LISTEN_PORT}`);
-  console.log(` ignore error     : ${IGNORE_ERROR}`);
 });
 server.listen(LISTEN_PORT);

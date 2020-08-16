@@ -18,7 +18,7 @@ export class AssuanClient implements IOptions {
   private _closeHandler: CloseHandler;
   private _errorHandler: ErrorHandler;
 
-  private _clientSocket!: net.Socket;
+  private _clientSocket: net.Socket | null = null;
   private _connected: boolean = false;
 
   private _isAssuan: boolean = false;
@@ -63,10 +63,31 @@ export class AssuanClient implements IOptions {
 
   public close(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this._clientSocket.end(() => {
+      if (this._clientSocket) {
+        this._clientSocket.end(() => {
+          this._clientSocket = null;
+          resolve();
+        });
+      } else {
         resolve();
-      });
-    })
+      }
+    });
+  }
+
+  public write(data: Buffer): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (this._clientSocket) {
+        this._clientSocket.write(data, (err) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
+      } else {
+        reject(new Error('Not connected'));
+      }
+    });
   }
 
   private _connectSocket(socket: net.Socket): Promise<void> {
@@ -112,7 +133,7 @@ export class AssuanClient implements IOptions {
       });
       socket.on('close', () => {
         this._closeHandler();
-        this._clientSocket = undefined as any;
+        this._clientSocket = null;
       });
     });
   }
